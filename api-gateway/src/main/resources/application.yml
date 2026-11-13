@@ -1,0 +1,49 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartdesk_auth_db}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+  mvc:
+    problemdetails:
+      enabled: true
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: tickets
+              uri: lb://ticket-service
+              predicates:
+                - Path=/api/v1/tickets/**
+            - id: notifications
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/v1/notifications/me
+          # ai-triage-service and /notifications/send are internal: deliberately NOT routed
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+smartdesk:
+  jwt:
+    secret: ${JWT_SECRET:c8f93a1e4b7d2c6e8f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e}
+  admin:
+    email: ${ADMIN_EMAIL:admin@smartdesk.local}
+  otp:
+    expose-in-response: ${OTP_EXPOSE:true}   # demo/Postman convenience; set false in production
+  internal-key: ${INTERNAL_API_KEY:dev-internal-key-change-me}   # shared with ticket-service; set a real secret outside dev
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}

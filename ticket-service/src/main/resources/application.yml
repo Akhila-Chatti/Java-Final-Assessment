@@ -1,0 +1,56 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: ticket-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/smartdesk_ticket_db}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update   # creates tables + @Index/@UniqueConstraint; switch to Flyway before production
+  mvc:
+    problemdetails:
+      enabled: true
+  cloud:
+    openfeign:
+      client:
+        config:
+          ai-triage-service:
+            connect-timeout: 2000
+            read-timeout: 8000
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      aiTriage:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+  retry:
+    instances:
+      notify:
+        max-attempts: 3
+        wait-duration: 1s
+
+smartdesk:
+  internal-key: ${INTERNAL_API_KEY:dev-internal-key-change-me}   # same value as api-gateway; for /internal/users lookups
+  retriage-interval: PT5M
+  claim-limit:
+    base: ${CLAIM_LIMIT_BASE:5}                 # every agent may take at least 5 tickets a day
+    buffer: ${CLAIM_LIMIT_BUFFER:2}               # headroom above their fair share
+    max: ${CLAIM_LIMIT_MAX:25}                 # hard ceiling, however busy the day
+    active-agent-lookback: P7D
+    zone: Asia/Kolkata        # when "today" starts

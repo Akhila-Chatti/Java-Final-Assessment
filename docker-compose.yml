@@ -1,0 +1,76 @@
+x-app: &app
+  build: .
+  image: smartdesk-app:latest
+  restart: on-failure
+  depends_on:
+    postgres: { condition: service_healthy }
+    eureka-server: { condition: service_started }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-smartdesk}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartdesk}
+    ports: ["5432:5432"]
+    volumes:
+      - ./infra/db:/docker-entrypoint-initdb.d        # 01..04: 3 databases + all tables, on first start
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartdesk}"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  eureka-server:
+    build: .
+    image: smartdesk-app:latest
+    environment: { SERVICE: eureka-server }
+    ports: ["8761:8761"]
+
+  api-gateway:
+    <<: *app
+    ports: ["8080:8080"]          # the only entry point for Postman / frontend
+    environment:
+      SERVICE: api-gateway
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
+      EUREKA_URL: http://eureka-server:8761/eureka
+      DB_URL: jdbc:postgresql://postgres:5432/smartdesk_auth_db
+      DB_USER: ${DB_USER:-smartdesk}
+      DB_PASSWORD: ${DB_PASSWORD:-smartdesk}
+
+  ticket-service:
+    <<: *app
+    environment:
+      SERVICE: ticket-service
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
+      EUREKA_URL: http://eureka-server:8761/eureka
+      DB_URL: jdbc:postgresql://postgres:5432/smartdesk_ticket_db
+      DB_USER: ${DB_USER:-smartdesk}
+      DB_PASSWORD: ${DB_PASSWORD:-smartdesk}
+
+  ai-triage-service:
+    <<: *app
+    depends_on: [eureka-server, redis]
+    environment:
+      SERVICE: ai-triage-service
+      EUREKA_URL: http://eureka-server:8761/eureka
+      REDIS_HOST: redis
+      LLM_API_KEY: ${LLM_API_KEY:-}     # empty = keyword demo mode
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+
+  notification-service:
+    <<: *app
+    environment:
+      SERVICE: notification-service
+      EUREKA_URL: http://eureka-server:8761/eureka
+      DB_URL: jdbc:postgresql://postgres:5432/smartdesk_notification_db
+      DB_USER: ${DB_USER:-smartdesk}
+      DB_PASSWORD: ${DB_PASSWORD:-smartdesk}
+
+volumes:
+  pgdata:

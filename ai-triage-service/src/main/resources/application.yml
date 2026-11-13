@@ -1,0 +1,34 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: ai-triage-service
+  cache:
+    type: ${CACHE_TYPE:redis}     # no Redis installed locally? set CACHE_TYPE=simple
+    redis:
+      time-to-live: 24h
+  cloud:
+    openfeign:
+      client:
+        config:
+          llm:
+            connect-timeout: 3000
+            read-timeout: 7000   # below the Ticket Service's 8s timeout
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      timeout: 500ms
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+llm:
+  base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+  api-key: ${LLM_API_KEY:}        # empty = keyword demo mode, no LLM needed
+  model: ${LLM_MODEL:gpt-4o-mini}
